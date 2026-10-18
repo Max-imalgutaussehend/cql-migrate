@@ -1,0 +1,41 @@
+[package]
+name = "cql-migrate"
+description = "Schema migrations for Cassandra and ScyllaDB: ordered, checksummed, locked, with offline chain checks, schema diff and live drift detection"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/Max-imalgutaussehend/cql-migrate"
+homepage = "https://max-imalgutaussehend.github.io/cqlz/cql-migrate.html"
+rust-version = "1.95"
+keywords = ["cassandra", "scylla", "cql", "migrations", "schema"]
+categories = ["database", "development-tools", "command-line-utilities"]
+authors = ["Max-imalgutaussehend"]
+readme = "README.md"
+
+[lib]
+name = "cql_migrate"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cql-migrate"
+path = "src/main.rs"
+
+[dependencies]
+cqlc-core = "1.1"
+scylla = "1.9"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+async-trait = "0.1"
+clap = { version = "4", features = ["derive", "env"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"
+sha2 = "0.10"
+anyhow = "1"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

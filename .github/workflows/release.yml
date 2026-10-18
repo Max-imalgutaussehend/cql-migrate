@@ -1,0 +1,30 @@
+# Builds the `cql-migrate` binary for the platforms users run in CI and attaches it to a GitHub release.
+name: Release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
+          - { os: macos-latest, target: aarch64-apple-darwin }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p cql-migrate --target ${{ matrix.target }}
+      - name: Package
+        run: |
+          tar -czf cql-migrate-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release cql-migrate
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: cql-migrate-${{ matrix.target }}.tar.gz

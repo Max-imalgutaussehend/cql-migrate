@@ -1,0 +1,60 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+
+  integration:
+    name: integration (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ScyllaDB
+            run: docker run -d --name db -p 9042:9042 scylladb/scylla:latest --smp 1 --memory 750M --overprovisioned 1 --developer-mode 1
+            probe: cqlsh -e 'select release_version from system.local'
+          - name: Cassandra 5.0
+            run: docker run -d --name db -p 9042:9042 -e MAX_HEAP_SIZE=1G -e HEAP_NEWSIZE=256M cassandra:5.0
+            probe: cqlsh -e 'select release_version from system.local'
+          - name: Cassandra 4.1
+            run: docker run -d --name db -p 9042:9042 -e MAX_HEAP_SIZE=1G -e HEAP_NEWSIZE=256M cassandra:4.1
+            probe: cqlsh -e 'select release_version from system.local'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Start the database
+        run: ${{ matrix.run }}
+      - name: Build while it starts
+        run: cargo test --test integration --no-run
+      - name: Wait for the database
+        run: |
+          for i in $(seq 1 90); do
+            if docker exec db ${{ matrix.probe }} >/dev/null 2>&1; then echo "ready after $((i * 5))s"; exit 0; fi
+            sleep 5
+          done
+          docker logs db | tail -50
+          exit 1
+      - name: Integration tests
+        env:
+          CQL_MIGRATE_TEST_NODE: 127.0.0.1:9042
+          CQL_MIGRATE_CONTAINER: db
+        run: cargo test --test integration -- --ignored --test-threads=1
